@@ -1,0 +1,15 @@
+{
+    "name": "cyd293/backendskin",
+    "description": "October CMS Backend Skin",
+    "authors": [
+        {
+            "name": "Cydrick Nonog",
+            "email": "cydrick.dev@gmail.com"
+        }
+    ],
+    "autoload": {
+        "classmap": ["traits/AssetMaker.php"]
+    },
+    "require": {
+    }
+}

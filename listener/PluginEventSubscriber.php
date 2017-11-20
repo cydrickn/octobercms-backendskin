@@ -8,7 +8,6 @@
 
 namespace Cyd293\BackendSkin\Listener;
 
-use Illuminate\Events\Dispatcher;
 use Backend\Classes\NavigationManager;
 use Backend\Classes\Skin as AbstractSkin;
 use October\Rain\Parse\Yaml;
@@ -50,7 +49,7 @@ class PluginEventSubscriber
         }
     }
     
-    public function subscribe(Dispatcher $events)
+    public function subscribe($events)
     {
         $events->listen('backend.page.beforeDisplay', [$this, 'onPageBeforeDisplay']);
         $events->listen('backend.menu.extendItems', [$this, 'onExtendMenu']);

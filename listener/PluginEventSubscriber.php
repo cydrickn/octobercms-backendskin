@@ -21,7 +21,7 @@ class PluginEventSubscriber
 {   
     public function onPageBeforeDisplay(
         \Backend\Classes\Controller $controller,
-        string $action,
+        $action,
         array $params = []
     ) {
         $origViewPath = $controller->guessViewPath();

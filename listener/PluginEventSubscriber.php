@@ -18,14 +18,14 @@ use October\Rain\Parse\Yaml;
  * @author Cydrick Nonog <cydrick.dev@gmail.com>
  */
 class PluginEventSubscriber
-{   
+{
     public function onPageBeforeDisplay(
         \Backend\Classes\Controller $controller,
         $action,
         array $params = []
     ) {
         $origViewPath = $controller->guessViewPath();
-        $newViewPath = ltrim($origViewPath, base_path());
+        $newViewPath = str_replace(base_path(), '', $origViewPath);
         $newViewPath = $this->getActiveSkin()->skinPath . '/views/' . $newViewPath;
         $controller->addViewPath([$newViewPath]);
     }
@@ -38,7 +38,7 @@ class PluginEventSubscriber
             $yamlParser = new Yaml();
             $extensionMenus = $yamlParser->parseFile($menuYmlPath);
             foreach ($extensionMenus as $context => $definitions) {
-                
+
                 foreach ($definitions as $menuName => $menu) {
                     $sideMenus = array_get($menu, 'sideMenu', []);
                     array_pull($menu, 'sideMenu');
@@ -48,13 +48,13 @@ class PluginEventSubscriber
             }
         }
     }
-    
+
     public function subscribe($events)
     {
         $events->listen('backend.page.beforeDisplay', [$this, 'onPageBeforeDisplay']);
         $events->listen('backend.menu.extendItems', [$this, 'onExtendMenu']);
     }
-    
+
     /**
      * @return AbstractSkin
      */

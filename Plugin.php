@@ -19,7 +19,7 @@ class Plugin extends PluginBase
         Event::subscribe(new PluginEventSubscriber());
         \Backend\Classes\WidgetBase::extendableExtendCallback(function (\Backend\Classes\WidgetBase $widget) {
             $origViewPath = $widget->guessViewPath();
-            $newViewPath = ltrim($origViewPath, base_path());
+            $newViewPath = str_replace(base_path(), '', $origViewPath);
             $newViewPath = $this->getActiveSkin()->skinPath . '/views/' . $newViewPath . '/partials';
             $widget->addViewPath($newViewPath);
         });

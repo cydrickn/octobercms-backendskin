@@ -7,6 +7,7 @@ use Event;
 use File;
 use Input;
 use Backend\Classes\Skin;
+use Cyd293\BackendSkin\Classes\Skin as Cyd293Skin;
 use Cms\Classes\Theme;
 use October\Rain\Router\Helper as RouterHelper;
 
@@ -19,17 +20,17 @@ class BackendSkin extends Skin
 {
     public function __construct()
     {
-        $this->skinPath = $this->defaultSkinPath = base_path() . '/modules/backend';
-        $this->publicSkinPath = $this->defaultPublicSkinPath = File::localToPublic($this->skinPath);
-
-        $skin = $this->getSkin();
-
-        if ($skin != 'octobercms') {
-            $this->skinPath = base_path() . '/themes/' . $skin . '/backend';
-            $this->publicSkinPath = File::localToPublic($this->skinPath);
-        }
+        $skin = Cyd293Skin::getActiveSkin();
+        $this->defaultSkinPath = $skin->getDefaultPath();
+        $this->defaultPublicSkinPath = File::localToPublic($skin->getDefaultPath());
+        $this->skinPath = $skin->getPath();
+        $this->publicSkinPath = File::localToPublic($skin->getPath());
     }
 
+    /**
+     * @deprecated since version 1.1.0
+     * @return string
+     */
     public function getSkin()
     {
         if (Input::has('_skin')) {

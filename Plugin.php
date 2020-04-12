@@ -6,6 +6,7 @@ use Backend\Classes\Skin as AbstractSkin;
 use Backend\Classes\WidgetBase;
 use Config;
 use Cyd293\BackendSkin\Listener\PluginEventSubscriber;
+use Cyd293\BackendSkin\Router\UrlGenerator;
 use Cyd293\BackendSkin\Skin\BackendSkin;
 use Event;
 use System\Classes\PluginBase;
@@ -17,7 +18,6 @@ class Plugin extends PluginBase
     public function boot()
     {
         Config::set('cms.backendSkin', BackendSkin::class);
-
         Event::subscribe(new PluginEventSubscriber());
         WidgetBase::extendableExtendCallback(function (WidgetBase $widget) {
             $origViewPath = $widget->guessViewPath();
@@ -29,7 +29,6 @@ class Plugin extends PluginBase
 
     public function registerComponents()
     {
-
     }
 
     public function registerSettings()
@@ -38,6 +37,7 @@ class Plugin extends PluginBase
 
     public function register()
     {
+        $this->app->register(RoutingServiceProvider::class);
         $this->registerConsoleCommand('cyd293.backendskin', Console\SetSkinCommand::class);
     }
 

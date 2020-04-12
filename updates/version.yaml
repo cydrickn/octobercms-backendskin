@@ -12,3 +12,5 @@
 1.1.1:
     - Update Asset maker to accept multiple file in addCss and addJs
     - Fix assets that was directly access by Url::asset
+1.1.2:
+    - Use extends for url instead of singleton

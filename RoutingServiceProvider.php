@@ -14,10 +14,8 @@ class RoutingServiceProvider extends ServiceProvider
 
     protected function registerUrlGenerator()
     {
-        $this->app->singleton('url', function ($app) {
+        $this->app->extend('url', function ($service, $app) {
             $routes = $app['router']->getRoutes();
-            $app->instance('routes', $routes);
-
             $url = new UrlGenerator(
                 $routes,
                 $app->rebinding(

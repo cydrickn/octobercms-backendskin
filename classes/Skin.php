@@ -2,12 +2,16 @@
 
 namespace Cyd293\BackendSkin\Classes;
 
-use App;
-use File;
-use Input;
-use Config;
+use Cms\Classes\Theme;
+use Cyd293\BackendSkin\Models\Settings;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Input;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Str;
 use System\Models\Parameter;
-use Event;
+use Illuminate\Support\Facades\Event;
 
 /**
  * Description of Skin
@@ -68,7 +72,7 @@ class Skin
     public static function getActiveSkinCode()
     {
         $activeSkin = static::SKIN_DEFAULT;
-        $dbResult = null;
+        $setting = null;
 
         if (\Input::has('_skin')) {
             \Cookie::forget('backend_skin');
@@ -83,13 +87,22 @@ class Skin
         }
 
         if (App::hasDatabase()) {
-            $dbResult = Parameter::applyKey(self::ACTIVE_KEY)->value('value');
-            if ($dbResult !== null && $dbResult !== static::SKIN_DEFAULT && static::exists($dbResult)) {
-                $activeSkin = $dbResult;
+            $parameter = Parameter::applyKey(self::ACTIVE_KEY)->value('value');
+            $setting = Settings::get('theme', $parameter);
+
+            if ($setting !== null && $setting !== '--frontend--' && $setting !== static::SKIN_DEFAULT && static::exists($setting)) {
+                $activeSkin = $setting;
+            }
+
+            if ($setting === '--frontend--') {
+                $activeThemeCode = \Cms\Classes\Theme::getActiveThemeCode();
+                if (static::exists($activeThemeCode)) {
+                    $activeSkin = $activeThemeCode;
+                }
             }
         }
 
-        if ($dbResult === null) {
+        if ($setting === null) {
             $activeThemeCode = Config::get('cyd293.backendskin::activeSkin');
             if ($activeThemeCode !== static::SKIN_DEFAULT && static::exists($activeThemeCode)) {
                 $activeSkin = $activeThemeCode;
@@ -131,7 +144,7 @@ class Skin
     {
         self::resetCache();
 
-        Parameter::set(self::ACTIVE_KEY, $code);
+        Settings::set('theme', $code);
 
         Event::fire('backendskin.setActiveSkin', compact('code'));
     }
@@ -213,5 +226,25 @@ class Skin
             base_path() . '/backendskins/' . $dirName,
             base_path() . '/themes/' . $dirName . '/backend',
         ];
+    }
+
+    public static function getSkins()
+    {
+        $skins = [];
+        if (File::isDirectory(backendskins_path())) {
+            $directories = File::directories(backendskins_path());
+            foreach ($directories as $directory) {
+                $dirname = Arr::last(explode(DIRECTORY_SEPARATOR, $directory));
+                $skins[$dirname] = str_replace('-', ' ', Str::title($dirname));
+            }
+        }
+
+        $themes = Theme::all();
+        foreach ($themes as $theme) {
+            $config = $theme->getConfig();
+            $skins[$theme->getId()] = $config['name'];
+        }
+
+        return $skins;
     }
 }

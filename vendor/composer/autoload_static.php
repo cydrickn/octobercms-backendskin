@@ -6,6 +6,10 @@ namespace Composer\Autoload;
 
 class ComposerStaticInit2c2f54f4bcd4b5a31cb595d3d31f9161
 {
+    public static $files = array (
+        'b13998e85dfd1a9e3b6656715bad8c24' => __DIR__ . '/../..' . '/support/helpers.php',
+    );
+
     public static $classMap = array (
         'System\\Traits\\AssetMaker' => __DIR__ . '/../..' . '/traits/AssetMaker.php',
     );

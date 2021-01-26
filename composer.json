@@ -8,7 +8,8 @@
         }
     ],
     "autoload": {
-        "classmap": ["traits/AssetMaker.php"]
+        "classmap": ["traits/AssetMaker.php"],
+        "files": ["support/helpers.php"]
     },
     "require": {
     }

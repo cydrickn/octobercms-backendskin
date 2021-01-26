@@ -1,0 +1,5 @@
+fields:
+    theme:
+        label: cyd293.backendskin::lang.settings.fields.theme
+        type: dropdown
+        placeholder: -- select a status --

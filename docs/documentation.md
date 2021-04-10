@@ -127,6 +127,17 @@ return [
 ];
 ```
 
+### Using Setting in UI
+
+As of version 1.2 you can now set the skin via setting ui.
+
+How to set it via ui?
+
+1. Go to `Settings`
+2. In `CMS` Setting, Click the `Backend Skin`
+3. The page setting will only have one field namely `Theme`, now select your desire skin.
+4. Then click `Save` button.
+
 ### The fallback skin
 
 The fallback skin, All method of defining your skin code will only define the your desired skin.
@@ -140,18 +151,17 @@ The below are the order of how the plugin will obtain skin code that will be use
 
 1. Input `_skin`
 2. Cookies `backend_skin`
-3. Setting `cyd293.backendskin::skin.active`
-4. Config `cyd293.backendskin::activeSkin`
-5. Current theme
+3. Setting (Set from UI) `cyd293_backendskin_settings.theme`
+4. Parameter `cyd293.backendskin::skin.active`
+5. Config `cyd293.backendskin::activeSkin`
+6. Current theme
 
 
 ## Feature Development
 
 This version was just the core part of the plugin that will change all assets and pages that you want do change in your backend.
 
-The next step for this is to provide you where you can easily switch backend theme via ui.
-
-And for more feature I also planning to add an editor where you can edit via backend.
+For feature development I'm planning to add an editor where you can edit via backend.
 
 To contribute for this plugin. Just checkout the plugin from https://github.com/cydrickn/octobercms-backendskin.
 

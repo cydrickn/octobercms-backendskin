@@ -3,7 +3,7 @@
 namespace Cyd293\BackendSkin\Router;
 
 use Backend\Classes\Skin as AbstractSkin;
-use October\Rain\Router\UrlGenerator as Base;
+use Illuminate\Routing\UrlGenerator as Base;
 use Cyd293\BackendSkin\Classes\Skin;
 
 class UrlGenerator extends Base

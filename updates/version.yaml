@@ -16,3 +16,5 @@
     - Use extends for url instead of singleton
 1.2.0:
     - Add backend skin theme selection in setting page
+1.2.1:
+    - Fixes the issue in Url Generator

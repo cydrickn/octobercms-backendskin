@@ -13,5 +13,6 @@
         "files": ["support/helpers.php"]
     },
     "require": {
+        "october/system": ">=2.1"
     }
 }

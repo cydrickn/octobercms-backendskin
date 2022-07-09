@@ -18,3 +18,6 @@
     - Add backend skin theme selection in setting page
 1.2.1:
     - Fixes the issue in Url Generator
+2.0.0:
+    - Compatibility for version 2 and 3
+    - Breaking changes! his version will not work for version 1

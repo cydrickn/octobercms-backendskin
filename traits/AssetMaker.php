@@ -286,7 +286,7 @@ trait AssetMaker
         $publicSkinAssetPath = $this->getActiveSkin()->publicSkinPath  . '/views/' . ltrim($path, '/');
         $skinAssetPath = $this->getActiveSkin()->skinPath  . '/views/' . ltrim($path, '/');
         if (file_exists($skinAssetPath)) {
-            $path = $publicSkinAssetPath;
+            return $publicSkinAssetPath;
         }
 
         return $assetPath . '/' . $fileName;

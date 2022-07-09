@@ -21,6 +21,7 @@ class Plugin extends PluginBase
     {
         $this->app->instance('path.backendskins', $this->backendSkinPaths());
         Config::set('cms.backendSkin', BackendSkin::class);
+        Config::set('backend.skin', BackendSkin::class);
         Event::subscribe(new PluginEventSubscriber());
         WidgetBase::extendableExtendCallback(function (WidgetBase $widget) {
             $origViewPath = $widget->guessViewPath();

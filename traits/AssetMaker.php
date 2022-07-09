@@ -1,44 +1,56 @@
-<?php
+<?php namespace System\Traits;
 
-namespace System\Traits;
-
+use App;
 use Url;
 use Html;
 use File;
-use System\Models\Parameter;
+use Event;
+use Backend;
 use System\Models\PluginVersion;
 use System\Classes\CombineAssets;
 use Backend\Classes\Skin as AbstractSkin;
 
 /**
- * Asset Maker Trait
+ * AssetMaker Trait
  * Adds asset based methods to a class
  *
  * @package october\system
  * @author Alexey Bobkov, Samuel Georges
+ * @license proprietary (this file only)
+ * @link https://octobercms.com/eula
  */
 trait AssetMaker
 {
-
     /**
      * @var array Collection of assets to display in the layout.
      */
-    protected $assets = ['js'=>[], 'css'=>[], 'rss'=>[]];
+    protected $assets = ['js' => [], 'css' => [], 'rss' => []];
 
     /**
-     * @var string Specifies a path to the asset directory.
+     * @var array Collection of combined and prioritized assets.
+     */
+    protected $assetBundles = ['js' => [], 'css' => []];
+
+    /**
+     * @var string assetPath specifies a public or relative path to the asset directory.
      */
     public $assetPath;
 
     /**
-     * Disables the use, and subequent broadcast, of assets. This is useful
+     * @var string assetLocalPath specifies a local path to the asset directory for the combiner.
+     */
+    public $assetLocalPath;
+
+    /**
+     * flushAssets disables the use, and subequent broadcast, of assets. This is useful
      * to call during an AJAX request to speed things up. This method works
      * by specifically targeting the hasAssetsDefined method.
      * @return void
      */
     public function flushAssets()
     {
-        $this->assets = ['js'=>[], 'css'=>[], 'rss'=>[]];
+        $this->assets = ['js' => [], 'css' => [], 'rss' => []];
+        $this->assetBundles = ['js' => [], 'css' => []];
     }
 
     /**
@@ -51,55 +63,48 @@ trait AssetMaker
         if ($type != null) {
             $type = strtolower($type);
         }
-        $result = null;
-        $reserved = ['build'];
 
+        // Prevent duplicates
         $this->removeDuplicates();
 
+        $result = null;
+
+        // StyleSheet
         if ($type == null || $type == 'css') {
             foreach ($this->assets['css'] as $asset) {
+                if ($attributes = $this->renderAssetAttributes('css', $asset)) {
+                    $result .= "<link {$attributes} />" . PHP_EOL;
+                }
+            }
 
-                /*
-                 * Prevent duplicates
-                 */
-                $attributes = Html::attributes(array_merge(
-                    [
-                        'rel'  => 'stylesheet',
-                        'href' => $this->getAssetEntryBuildPath($asset)
-                    ],
-                    array_except($asset['attributes'], $reserved)
-                ));
-
-                $result .= '<link' . $attributes . '>' . PHP_EOL;
+            foreach ($this->combineBundledAssets('css') as $asset) {
+                if ($attributes = $this->renderAssetAttributes('css', $asset)) {
+                    $result .= "<link {$attributes} />" . PHP_EOL;
+                }
             }
         }
 
+        // RSS Feed
         if ($type == null || $type == 'rss') {
             foreach ($this->assets['rss'] as $asset) {
-                $attributes = Html::attributes(array_merge(
-                    [
-                        'rel'   => 'alternate',
-                        'href'  => $this->getAssetEntryBuildPath($asset),
-                        'title' => 'RSS',
-                        'type'  => 'application/rss+xml'
-                    ],
-                    array_except($asset['attributes'], $reserved)
-                ));
-
-                $result .= '<link' . $attributes . '>' . PHP_EOL;
+                if ($attributes = $this->renderAssetAttributes('rss', $asset)) {
+                    $result .= "<link {$attributes} />" . PHP_EOL;
+                }
             }
         }
 
+        // JavaScript
         if ($type == null || $type == 'js') {
             foreach ($this->assets['js'] as $asset) {
-                $attributes = Html::attributes(array_merge(
-                    [
-                        'src' => $this->getAssetEntryBuildPath($asset)
-                    ],
-                    array_except($asset['attributes'], $reserved)
-                ));
+                if ($attributes = $this->renderAssetAttributes('js', $asset)) {
+                    $result .= "<script {$attributes}></script>" . PHP_EOL;
+                }
+            }
 
-                $result .= '<script' . $attributes . '></script>' . PHP_EOL;
+            foreach ($this->combineBundledAssets('js') as $asset) {
+                if ($attributes = $this->renderAssetAttributes('js', $asset)) {
+                    $result .= "<script {$attributes}></script>" . PHP_EOL;
+                }
             }
         }
 
@@ -107,11 +112,7 @@ trait AssetMaker
     }
 
     /**
-     * Adds JavaScript asset to the asset list. Call $this->makeAssets() in a view
-     * to output corresponding markup.
-     * @param string $name Specifies a path (URL) to the script.
-     * @param array $attributes Adds extra HTML attributes to the asset link.
-     * @return void
+     * addJs includes a JavaScript asset to the asset list
      */
     public function addJs($name, $attributes = [])
     {
@@ -125,23 +126,37 @@ trait AssetMaker
             $this->controller->addJs($jsPath, $attributes);
         }
 
-        if (is_string($attributes)) {
+        // Attributes can be a scaler when used as a build reference
+        if (is_scalar($attributes)) {
             $attributes = ['build' => $attributes];
         }
 
         $jsPath = $this->getAssetScheme($jsPath);
 
-        if (!in_array($jsPath, $this->assets['js'])) {
-            $this->assets['js'][] = ['path' => $jsPath, 'attributes' => $attributes];
-        }
+        $this->assets['js'][] = ['path' => $jsPath, 'attributes' => $attributes];
     }
 
     /**
-     * Adds StyleSheet asset to the asset list. Call $this->makeAssets() in a view
-     * to output corresponding markup.
-     * @param string $name Specifies a path (URL) to the script.
-     * @param array $attributes Adds extra HTML attributes to the asset link.
-     * @return void
+     * addJsBundle includes a JS asset to the bundled combiner stream
+     */
+    public function addJsBundle(string $name, $attributes = [])
+    {
+        $jsPath = $this->getAssetPath($name);
+
+        if (isset($this->controller)) {
+            $this->controller->addJsBundle($jsPath, $attributes);
+        }
+
+        // Attributes can be a scaler when used as a build reference
+        if (is_scalar($attributes)) {
+            $attributes = ['build' => $attributes];
+        }
+
+        $this->assetBundles['js'][] = ['path' => $jsPath, 'attributes' => $attributes];
+    }
+
+    /**
+     * addCss includes a StyleSheet asset to the asset list
      */
     public function addCss($name, $attributes = [])
     {
@@ -150,28 +165,43 @@ trait AssetMaker
         }
 
         $cssPath = $this->getAssetPath($name);
-        
+
         if (isset($this->controller)) {
             $this->controller->addCss($cssPath, $attributes);
         }
 
-        if (is_string($attributes)) {
+        // Attributes can be a scaler when used as a build reference
+        if (is_scalar($attributes)) {
             $attributes = ['build' => $attributes];
         }
 
         $cssPath = $this->getAssetScheme($cssPath);
 
-        if (!in_array($cssPath, $this->assets['css'])) {
-            $this->assets['css'][] = ['path' => $cssPath, 'attributes' => $attributes];
-        }
+        $this->assets['css'][] = ['path' => $cssPath, 'attributes' => $attributes];
     }
 
     /**
-     * Adds an RSS link asset to the asset list. Call $this->makeAssets() in a view
-     * to output corresponding markup.
-     * @param string $name Specifies a path (URL) to the RSS channel
-     * @param array $attributes Adds extra HTML attributes to the asset link.
-     * @return void
+     * addCssBundle includes a CSS asset to the bundled combiner stream
+     */
+    public function addCssBundle(string $name, $attributes = [])
+    {
+        $cssPath = $this->getAssetPath($name);
+
+        if (isset($this->controller)) {
+            $this->controller->addCssBundle($cssPath, $attributes);
+        }
+
+        // Attributes can be a scaler when used as a build reference
+        if (is_scalar($attributes)) {
+            $attributes = ['build' => $attributes];
+        }
+
+        $this->assetBundles['css'][] = ['path' => $cssPath, 'attributes' => $attributes];
+    }
+
+    /**
+     * addRss adds an RSS link asset to the asset list. Call $this->makeAssets()
+     * in a view to output corresponding markup.
      */
     public function addRss($name, $attributes = [])
     {
@@ -187,24 +217,20 @@ trait AssetMaker
 
         $rssPath = $this->getAssetScheme($rssPath);
 
-        if (!in_array($rssPath, $this->assets['rss'])) {
-            $this->assets['rss'][] = ['path' => $rssPath, 'attributes' => $attributes];
-        }
+        $this->assets['rss'][] = ['path' => $rssPath, 'attributes' => $attributes];
     }
 
     /**
-     * Run the provided assets through the Asset Combiner
-     * @param array $assets Collection of assets
-     * @param string $localPath Prefix all assets with this path (optional)
-     * @return string
+     * combineAssets runs asset paths through the Asset Combiner
      */
-    public function combineAssets(array $assets, $localPath = '')
+    public function combineAssets(array $assets, $localPath = ''): string
     {
-        // Short circuit if no assets actually provided
-	    if (empty($assets)) {
-		    return '';
+        if (empty($assets)) {
+            return '';
         }
-        $assetPath = !empty($localPath) ? $localPath : $this->assetPath;
+
+        $assetPath = $localPath ?: $this->assetLocalPath;
+
         return Url::to(CombineAssets::combine($assets, $assetPath));
     }
 
@@ -217,18 +243,25 @@ trait AssetMaker
         $this->removeDuplicates();
 
         $assets = [];
+
         foreach ($this->assets as $type => $collection) {
             $assets[$type] = [];
             foreach ($collection as $asset) {
                 $assets[$type][] = $this->getAssetEntryBuildPath($asset);
             }
         }
-        
+
+        foreach (['js', 'css'] as $bundleType) {
+            foreach ($this->combineBundledAssets($bundleType) as $asset) {
+                $assets[$bundleType][] = $this->getAssetEntryBuildPath($asset);
+            }
+        }
+
         return $assets;
     }
 
     /**
-     * Locates a file based on it's definition. If the file starts with
+     * getAssetPath locates a file based on it's definition. If the file starts with
      * a forward slash, it will be returned in context of the application public path,
      * otherwise it will be returned in context of the asset path.
      * @param string $fileName File to load.
@@ -248,24 +281,24 @@ trait AssetMaker
         if (substr($fileName, 0, 1) == '/' || $assetPath === null) {
             return $fileName;
         }
-        
+
         $path = $assetPath . '/' . $fileName;
         $publicSkinAssetPath = $this->getActiveSkin()->publicSkinPath  . '/views/' . ltrim($path, '/');
         $skinAssetPath = $this->getActiveSkin()->skinPath  . '/views/' . ltrim($path, '/');
         if (file_exists($skinAssetPath)) {
             $path = $publicSkinAssetPath;
         }
-        
-        return $path;
+
+        return $assetPath . '/' . $fileName;
     }
 
     /**
-     * Returns true if assets any have been added.
-     * @return bool
+     * hasAssetsDefined returns true if assets any have been added
      */
-    public function hasAssetsDefined()
+    public function hasAssetsDefined(): bool
     {
-        return count($this->assets, COUNT_RECURSIVE) > 3;
+        return count($this->assets, COUNT_RECURSIVE) > 3 ||
+            count($this->assetBundles, COUNT_RECURSIVE) > 2;
     }
 
     /**
@@ -279,25 +312,31 @@ trait AssetMaker
         if (isset($asset['attributes']['build'])) {
             $build = $asset['attributes']['build'];
 
-            if ($build == 'core') {
-                $build = 'v' . Parameter::get('system::core.build', 1);
+            if (!App::runningInBackend()) {
+                $build = '';
+            }
+            elseif ($build === 'core') {
+                $build = 'v' . Backend::assetVersion();
             }
             elseif ($pluginVersion = PluginVersion::getVersion($build)) {
                 $build = 'v' . $pluginVersion;
             }
+            else {
+                $build = '';
+            }
 
-            $path .= '?' . $build;
+            if (strlen($build)) {
+                $path .= '?' . $build;
+            }
         }
 
         return $path;
     }
 
     /**
-     * Internal helper, get asset scheme
-     * @param string $asset Specifies a path (URL) to the asset.
-     * @return string
+     * getAssetScheme is an internal helper to get the asset scheme.
      */
-    protected function getAssetScheme($asset)
+    protected function getAssetScheme(string $asset): string
     {
         if (starts_with($asset, ['//', 'http://', 'https://'])) {
             return $asset;
@@ -311,40 +350,147 @@ trait AssetMaker
     }
 
     /**
-     * Removes duplicate assets from the entire collection.
-     * @return void
+     * removeDuplicates removes duplicate assets from the entire collection.
      */
     protected function removeDuplicates()
     {
-        foreach ($this->assets as $type => &$collection) {
+        $removeFunc = function($group) {
+            foreach ($group as &$collection) {
+                $pathCache = [];
+                foreach ($collection as $key => $asset) {
+                    if (!$path = array_get($asset, 'path')) {
+                        continue;
+                    }
 
-            $pathCache = [];
-            foreach ($collection as $key => $asset) {
+                    if (isset($pathCache[$path])) {
+                        array_forget($collection, $key);
+                        continue;
+                    }
 
-                if (!$path = array_get($asset, 'path')) {
-                    continue;
+                    $pathCache[$path] = true;
                 }
-
-                if (isset($pathCache[$path])) {
-                    array_forget($collection, $key);
-                    continue;
-                }
-
-                $pathCache[$path] = true;
             }
 
-        }
+            return $group;
+        };
+
+        $this->assets = $removeFunc($this->assets);
+        $this->assetBundles = $removeFunc($this->assetBundles);
     }
 
-    protected function getLocalPath(string $relativePath)
+    /**
+     * getLocalPath converts a relative path to a local path
+     */
+    protected function getLocalPath(string $relativePath): string
     {
         $relativePath = File::symbolizePath($relativePath);
+
         if (!starts_with($relativePath, [base_path()])) {
             $relativePath = base_path($relativePath);
         }
+
         return $relativePath;
     }
-    
+
+    /**
+     * renderAssetAttributes takes an asset definition and returns the necessary HTML output
+     */
+    protected function renderAssetAttributes(string $type, array $asset): string
+    {
+        if (!$path = $this->getAssetEntryBuildPath($asset)) {
+            return '';
+        }
+
+        // Internal attributes to be purged
+        // - build: the unique build code for cache busting
+        $reserved = ['build'];
+        $userAttrs = array_except(array_get($asset, 'attributes', []), $reserved);
+
+        /**
+         * @event system.assets.beforeAddAsset
+         * Provides an opportunity to inspect or modify an asset.
+         *
+         * The parameters provided are:
+         * string `$type`: The type of the asset being added
+         * string `$path`: The path to the asset being added
+         * array `$attributes`: The array of attributes for the asset being added.
+         *
+         * All the parameters are provided by reference for modification.
+         * This event is also a halting event, so returning false will prevent the
+         * current asset from being added. Note that duplicates are filtered out
+         * before the event is fired.
+         *
+         * Example usage:
+         *
+         *     Event::listen('system.assets.beforeAddAsset', function (string $type, string $path, array $attributes) {
+         *         if (in_array($path, $blockedAssets)) {
+         *             return false;
+         *         }
+         *     });
+         *
+         * Or
+         *
+         *     $this->bindEvent('assets.beforeAddAsset', function (string $type, string $path, array $attributes) {
+         *         $attributes['special_cdn_flag'] = false;
+         *     });
+         *
+         */
+        if (
+            (method_exists($this, 'fireEvent') && ($this->fireEvent('assets.beforeAddAsset', [&$type, &$path, &$userAttrs], true) === false)) ||
+            (Event::fire('system.assets.beforeAddAsset', [&$type, &$path, &$userAttrs], true) === false)
+        ) {
+            return '';
+        }
+
+        // Determine final attributes
+        $attrs = [];
+        if ($type === 'css') {
+            $attrs['rel'] = 'stylesheet';
+            $attrs['href'] = $path;
+        }
+        elseif ($type === 'js') {
+            $attrs['src'] = $path;
+        }
+        elseif ($type === 'rss') {
+            $attrs['rel'] = 'alternate';
+            $attrs['href'] = $path;
+            $attrs['title'] = 'RSS';
+            $attrs['type'] = 'application/rss+xml';
+        }
+
+        // Generate HTML attribute string
+        return trim(Html::attributes(array_merge($attrs, $userAttrs)));
+    }
+
+    /**
+     * combineBundledAssets spins over every bundle definition and combines them to an asset
+     */
+    protected function combineBundledAssets($type): array
+    {
+        $assets = [];
+        $bundles = [];
+
+        // Split bundles in to builds
+        foreach ($this->assetBundles[$type] as $asset) {
+            $build = $asset['build'] ?? 'core';
+            $bundles[$build][] = $asset;
+        }
+
+        // Combine all asset paths and defined attributes
+        foreach ($bundles as $build => $bundle) {
+            $paths = [];
+            $attributes = [];
+            foreach ($bundle as $asset) {
+                $paths[] = $this->getLocalPath($asset['path'] ?? '');
+                $attributes += $asset['attributes'] ?? [];
+            }
+
+            $assets[] = ['path' => $this->combineAssets($paths), 'attributes' => $attributes];
+        }
+
+        return $assets;
+    }
+
     /**
      * @return AbstractSkin
      */

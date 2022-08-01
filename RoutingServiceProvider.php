@@ -3,13 +3,14 @@
 namespace Cyd293\BackendSkin;
 
 use Cyd293\BackendSkin\Router\UrlGenerator;
-use Illuminate\Support\ServiceProvider;
+use October\Rain\Html\UrlServiceProvider;
 
-class RoutingServiceProvider extends ServiceProvider
+class RoutingServiceProvider extends UrlServiceProvider
 {
     public function register()
     {
         $this->registerUrlGenerator();
+        parent::register();
     }
 
     protected function registerUrlGenerator()
@@ -25,7 +26,11 @@ class RoutingServiceProvider extends ServiceProvider
             );
 
             $url->setSessionResolver(function () {
-                return $this->app['session'];
+                return $this->app['session'] ?? null;
+            });
+
+            $url->setKeyResolver(function () {
+                return $this->app->make('config')->get('app.key');
             });
 
             $app->rebinding('routes', function ($app, $routes) {

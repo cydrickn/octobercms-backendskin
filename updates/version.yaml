@@ -20,6 +20,8 @@
     - Fixes the issue in Url Generator
 2.0.0:
     - Compatibility for version 2 and 3
-    - Breaking changes! his version will not work for version 1
+    - Breaking changes! this version will not work for version 1
 2.0.1:
     - Fix where the backend skin does not fetch the custom themes
+2.0.2:
+    - Fix issue with LINK_POLICY

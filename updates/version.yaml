@@ -25,3 +25,5 @@
     - Fix where the backend skin does not fetch the custom themes
 2.0.2:
     - Fix issue with LINK_POLICY
+2.1.0:
+    - Support Octobercms 3.1

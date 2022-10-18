@@ -5,8 +5,8 @@ use Url;
 use Html;
 use File;
 use Event;
+use Request;
 use Backend;
-use System\Models\PluginVersion;
 use System\Classes\CombineAssets;
 use Backend\Classes\Skin as AbstractSkin;
 
@@ -16,8 +16,6 @@ use Backend\Classes\Skin as AbstractSkin;
  *
  * @package october\system
  * @author Alexey Bobkov, Samuel Georges
- * @license proprietary (this file only)
- * @link https://octobercms.com/eula
  */
 trait AssetMaker
 {
@@ -40,6 +38,11 @@ trait AssetMaker
      * @var string assetLocalPath specifies a local path to the asset directory for the combiner.
      */
     public $assetLocalPath;
+
+    /**
+     * @var string assetDefaults is the default attributes for assets.
+     */
+    protected $assetDefaults = ['build' => 'core'];
 
     /**
      * flushAssets disables the use, and subequent broadcast, of assets. This is useful
@@ -65,7 +68,7 @@ trait AssetMaker
         }
 
         // Prevent duplicates
-        $this->removeDuplicates();
+        $this->removeDuplicateAssets();
 
         $result = null;
 
@@ -126,11 +129,6 @@ trait AssetMaker
             $this->controller->addJs($jsPath, $attributes);
         }
 
-        // Attributes can be a scaler when used as a build reference
-        if (is_scalar($attributes)) {
-            $attributes = ['build' => $attributes];
-        }
-
         $jsPath = $this->getAssetScheme($jsPath);
 
         $this->assets['js'][] = ['path' => $jsPath, 'attributes' => $attributes];
@@ -142,14 +140,10 @@ trait AssetMaker
     public function addJsBundle(string $name, $attributes = [])
     {
         $jsPath = $this->getAssetPath($name);
+        $attributes = $this->processAssetAttributes($attributes);
 
         if (isset($this->controller)) {
             $this->controller->addJsBundle($jsPath, $attributes);
-        }
-
-        // Attributes can be a scaler when used as a build reference
-        if (is_scalar($attributes)) {
-            $attributes = ['build' => $attributes];
         }
 
         $this->assetBundles['js'][] = ['path' => $jsPath, 'attributes' => $attributes];
@@ -165,14 +159,10 @@ trait AssetMaker
         }
 
         $cssPath = $this->getAssetPath($name);
+        $attributes = $this->processAssetAttributes($attributes);
 
         if (isset($this->controller)) {
             $this->controller->addCss($cssPath, $attributes);
-        }
-
-        // Attributes can be a scaler when used as a build reference
-        if (is_scalar($attributes)) {
-            $attributes = ['build' => $attributes];
         }
 
         $cssPath = $this->getAssetScheme($cssPath);
@@ -186,14 +176,10 @@ trait AssetMaker
     public function addCssBundle(string $name, $attributes = [])
     {
         $cssPath = $this->getAssetPath($name);
+        $attributes = $this->processAssetAttributes($attributes);
 
         if (isset($this->controller)) {
             $this->controller->addCssBundle($cssPath, $attributes);
-        }
-
-        // Attributes can be a scaler when used as a build reference
-        if (is_scalar($attributes)) {
-            $attributes = ['build' => $attributes];
         }
 
         $this->assetBundles['css'][] = ['path' => $cssPath, 'attributes' => $attributes];
@@ -206,13 +192,10 @@ trait AssetMaker
     public function addRss($name, $attributes = [])
     {
         $rssPath = $this->getAssetPath($name);
+        $attributes = $this->processAssetAttributes($attributes);
 
         if (isset($this->controller)) {
             $this->controller->addRss($rssPath, $attributes);
-        }
-
-        if (is_string($attributes)) {
-            $attributes = ['build' => $attributes];
         }
 
         $rssPath = $this->getAssetScheme($rssPath);
@@ -235,12 +218,12 @@ trait AssetMaker
     }
 
     /**
-     * Returns an array of all registered asset paths.
+     * getAssetPaths returns an array of all registered asset paths.
      * @return array
      */
     public function getAssetPaths()
     {
-        $this->removeDuplicates();
+        $this->removeDuplicateAssets();
 
         $assets = [];
 
@@ -302,6 +285,27 @@ trait AssetMaker
     }
 
     /**
+     * processAssetAttributes
+     */
+    protected function processAssetAttributes($attributes)
+    {
+        // Attributes can be a scalar when used as a build reference
+        if (is_scalar($attributes)) {
+            $attributes = ['build' => $attributes];
+        }
+
+        // Type check
+        if (!is_array($attributes)) {
+            $attributes = [];
+        }
+
+        // Merge in defaults
+        $attributes = array_merge((array) $this->assetDefaults, $attributes);
+
+        return $attributes;
+    }
+
+    /**
      * Internal helper, attaches a build code to an asset path
      * @param  array $asset Stored asset array
      * @return string
@@ -309,20 +313,19 @@ trait AssetMaker
     protected function getAssetEntryBuildPath($asset)
     {
         $path = $asset['path'];
-        if (isset($asset['attributes']['build'])) {
+
+        // Has build and query string not already included
+        $useBuild = !empty($asset['attributes']['build']) &&
+            strpos($path, '?') === false;
+
+        if ($useBuild) {
             $build = $asset['attributes']['build'];
 
             if (!App::runningInBackend()) {
                 $build = '';
             }
-            elseif ($build === 'core') {
-                $build = 'v' . Backend::assetVersion();
-            }
-            elseif ($pluginVersion = PluginVersion::getVersion($build)) {
-                $build = 'v' . $pluginVersion;
-            }
             else {
-                $build = '';
+                $build = 'v' . Backend::assetVersion();
             }
 
             if (strlen($build)) {
@@ -350,11 +353,11 @@ trait AssetMaker
     }
 
     /**
-     * removeDuplicates removes duplicate assets from the entire collection.
+     * removeDuplicateAssets removes duplicate and global assets from the entire collection
      */
-    protected function removeDuplicates()
+    protected function removeDuplicateAssets()
     {
-        $removeFunc = function($group) {
+        $removeFunc = function($group, $removeGlobal) {
             foreach ($group as &$collection) {
                 $pathCache = [];
                 foreach ($collection as $key => $asset) {
@@ -362,6 +365,13 @@ trait AssetMaker
                         continue;
                     }
 
+                    // Asset is global
+                    if ($removeGlobal && array_get($asset, 'attributes.build') === 'global') {
+                        array_forget($collection, $key);
+                        continue;
+                    }
+
+                    // Already seen asset
                     if (isset($pathCache[$path])) {
                         array_forget($collection, $key);
                         continue;
@@ -374,8 +384,9 @@ trait AssetMaker
             return $group;
         };
 
-        $this->assets = $removeFunc($this->assets);
-        $this->assetBundles = $removeFunc($this->assetBundles);
+        $isAjax = Request::ajax();
+        $this->assets = $removeFunc($this->assets, $isAjax);
+        $this->assetBundles = $removeFunc($this->assetBundles, $isAjax);
     }
 
     /**
@@ -472,7 +483,7 @@ trait AssetMaker
 
         // Split bundles in to builds
         foreach ($this->assetBundles[$type] as $asset) {
-            $build = $asset['build'] ?? 'core';
+            $build = $asset['attributes']['build'] ?? 'core';
             $bundles[$build][] = $asset;
         }
 

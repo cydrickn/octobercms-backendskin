@@ -27,3 +27,5 @@
     - Fix issue with LINK_POLICY
 2.1.0:
     - Support Octobercms 3.1
+2.1.1:
+    - Fix issue with AssetMaker

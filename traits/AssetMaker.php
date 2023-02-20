@@ -124,6 +124,7 @@ trait AssetMaker
         }
 
         $jsPath = $this->getAssetPath($name);
+        $attributes = $this->processAssetAttributes($attributes);
 
         if (isset($this->controller)) {
             $this->controller->addJs($jsPath, $attributes);
